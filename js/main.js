@@ -1,6 +1,16 @@
 import { Game } from "./game.js";
 import { TOWER_DEFS } from "./towers.js";
-import { UPGRADE_DEFS, loadMeta, saveMeta, computeMods, canBuy } from "./upgrades.js";
+import {
+  UPGRADE_DEFS,
+  LEVELABLE_DEFS,
+  loadMeta,
+  saveMeta,
+  computeMods,
+  canBuy,
+  levelCost,
+  canBuyLevel,
+  buyLevel,
+} from "./upgrades.js";
 
 const screens = {
   menu: document.getElementById("screen-menu"),
@@ -113,9 +123,39 @@ function onGameEnd({ victory, orcsKilled, totalToSpawn }) {
 }
 
 function buildUpgradeTree() {
+  const levelContainer = document.getElementById("upgrade-list-levels");
   const container = document.getElementById("upgrade-list");
-  container.innerHTML = "";
   document.getElementById("upgrade-essence").textContent = meta.essence;
+
+  // 레벨형 업그레이드 (공격력/연사속도/사거리/타워 슬롯) - 레벨 30까지 반복 구매
+  levelContainer.innerHTML = "";
+  for (const def of LEVELABLE_DEFS) {
+    const level = meta.levels[def.key] || 0;
+    const maxed = level >= def.maxLevel;
+    const affordable = canBuyLevel(meta, def);
+    const card = document.createElement("div");
+    card.className = "upgrade-card" + (maxed ? " owned" : "");
+    card.innerHTML = `
+      <div class="upgrade-name">${def.name} <span class="upgrade-level">Lv. ${level} / ${def.maxLevel}</span></div>
+      <div class="upgrade-desc">${def.desc(level)}</div>
+      <div class="upgrade-footer">
+        <span class="upgrade-cost">${maxed ? "최고 레벨" : levelCost(def, level) + " 정수"}</span>
+        ${maxed ? "" : `<button class="buy-btn" ${affordable ? "" : "disabled"}>+1</button>`}
+      </div>
+    `;
+    if (!maxed) {
+      card.querySelector(".buy-btn").addEventListener("click", () => {
+        if (!buyLevel(meta, def)) return;
+        saveMeta(meta);
+        buildUpgradeTree();
+        refreshMenuEssence();
+      });
+    }
+    levelContainer.appendChild(card);
+  }
+
+  // 1회성 업그레이드 (경제/성벽/타워 해금/정수 효율)
+  container.innerHTML = "";
   for (const def of UPGRADE_DEFS) {
     const owned = meta.owned.includes(def.id);
     const lockedByRequire = def.requires && !meta.owned.includes(def.requires);

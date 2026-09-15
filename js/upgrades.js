@@ -1,15 +1,6 @@
 // 런이 끝날 때마다 얻는 "정수(essence)"로 구매하는 영구 업그레이드 트리.
-// requires 로 선행 노드를 지정해 간단한 트리 구조를 만든다.
+// requires 로 선행 노드를 지정해 간단한 트리 구조를 만든다. (1회성 구매)
 export const UPGRADE_DEFS = [
-  { id: "dmg1", name: "공격력 강화 I", desc: "모든 타워 데미지 +15%", cost: 10, requires: null, effect: { damageMult: 0.15 } },
-  { id: "dmg2", name: "공격력 강화 II", desc: "데미지 +15% 추가", cost: 25, requires: "dmg1", effect: { damageMult: 0.15 } },
-  { id: "dmg3", name: "공격력 강화 III", desc: "데미지 +20% 추가", cost: 45, requires: "dmg2", effect: { damageMult: 0.2 } },
-
-  { id: "rate1", name: "연사 속도 I", desc: "공격 속도 +10%", cost: 12, requires: null, effect: { fireRateMult: 0.1 } },
-  { id: "rate2", name: "연사 속도 II", desc: "공격 속도 +15% 추가", cost: 28, requires: "rate1", effect: { fireRateMult: 0.15 } },
-
-  { id: "range1", name: "사거리 강화", desc: "모든 타워 사거리 +15%", cost: 15, requires: null, effect: { rangeMult: 0.15 } },
-
   { id: "gold1", name: "경제 강화 I", desc: "런 시작 골드 +50", cost: 10, requires: null, effect: { startGold: 50 } },
   { id: "gold2", name: "경제 강화 II", desc: "시작 골드 +80 추가", cost: 25, requires: "gold1", effect: { startGold: 80 } },
 
@@ -21,23 +12,85 @@ export const UPGRADE_DEFS = [
 
   { id: "essence1", name: "정수 효율 I", desc: "런 종료 시 정수 획득 +20%", cost: 20, requires: null, effect: { essenceMult: 0.2 } },
   { id: "essence2", name: "정수 효율 II", desc: "정수 획득 +25% 추가", cost: 40, requires: "essence1", effect: { essenceMult: 0.25 } },
-
-  { id: "slot1", name: "타워 슬롯 확장 I", desc: "설치 가능한 타워 개수 +1", cost: 20, requires: null, effect: { maxTowers: 1 } },
-  { id: "slot2", name: "타워 슬롯 확장 II", desc: "설치 가능한 타워 개수 +1", cost: 35, requires: "slot1", effect: { maxTowers: 1 } },
-  { id: "slot3", name: "타워 슬롯 확장 III", desc: "설치 가능한 타워 개수 +1", cost: 55, requires: "slot2", effect: { maxTowers: 1 } },
-  { id: "slot4", name: "타워 슬롯 확장 IV", desc: "설치 가능한 타워 개수 +1", cost: 80, requires: "slot3", effect: { maxTowers: 1 } },
 ];
+
+// 레벨형 업그레이드: 티어 제한 없이 레벨 30까지 반복 구매 가능.
+// 레벨당 비용은 baseCost + level * costStep (선형 증가).
+export const LEVELABLE_DEFS = [
+  {
+    key: "damage",
+    name: "공격력 강화",
+    desc: (lvl) => `모든 타워 데미지 +${lvl * 5}% (레벨당 +5%)`,
+    effectField: "damageMult",
+    perLevel: 0.05,
+    maxLevel: 30,
+    baseCost: 10,
+    costStep: 4,
+  },
+  {
+    key: "fireRate",
+    name: "연사 속도",
+    desc: (lvl) => `모든 타워 공격 속도 +${lvl * 4}% (레벨당 +4%)`,
+    effectField: "fireRateMult",
+    perLevel: 0.04,
+    maxLevel: 30,
+    baseCost: 10,
+    costStep: 4,
+  },
+  {
+    key: "range",
+    name: "사거리 강화",
+    desc: (lvl) => `모든 타워 사거리 +${Math.round(lvl * 2.5)}% (레벨당 +2.5%)`,
+    effectField: "rangeMult",
+    perLevel: 0.025,
+    maxLevel: 30,
+    baseCost: 10,
+    costStep: 3,
+  },
+  {
+    key: "slots",
+    name: "타워 슬롯 확장",
+    desc: (lvl) => `설치 가능한 타워 개수 +${lvl}개 (레벨당 +1개)`,
+    effectField: "maxTowers",
+    perLevel: 1,
+    maxLevel: 30,
+    baseCost: 20,
+    costStep: 15,
+  },
+];
+
+export function levelCost(def, level) {
+  return def.baseCost + level * def.costStep;
+}
+
+export function canBuyLevel(meta, def) {
+  const level = meta.levels[def.key] || 0;
+  if (level >= def.maxLevel) return false;
+  return meta.essence >= levelCost(def, level);
+}
+
+export function buyLevel(meta, def) {
+  if (!canBuyLevel(meta, def)) return false;
+  const level = meta.levels[def.key] || 0;
+  meta.essence -= levelCost(def, level);
+  meta.levels[def.key] = level + 1;
+  return true;
+}
 
 const STORAGE_KEY = "orcSiegeMeta_v1";
 
 export function loadMeta() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { essence: 0, owned: [] };
+    if (!raw) return { essence: 0, owned: [], levels: {} };
     const parsed = JSON.parse(raw);
-    return { essence: parsed.essence || 0, owned: parsed.owned || [] };
+    return {
+      essence: parsed.essence || 0,
+      owned: parsed.owned || [],
+      levels: parsed.levels || {}, // 구버전 세이브 호환 (levels 없으면 전부 0)
+    };
   } catch (e) {
-    return { essence: 0, owned: [] };
+    return { essence: 0, owned: [], levels: {} };
   }
 }
 
@@ -69,6 +122,11 @@ export function computeMods(meta) {
     if (e.essenceMult) mods.essenceMult += e.essenceMult;
     if (e.maxTowers) mods.maxTowers += e.maxTowers;
     if (e.unlock) mods.unlocked.add(e.unlock);
+  }
+  for (const def of LEVELABLE_DEFS) {
+    const level = meta.levels[def.key] || 0;
+    if (!level) continue;
+    mods[def.effectField] += def.perLevel * level;
   }
   return mods;
 }
