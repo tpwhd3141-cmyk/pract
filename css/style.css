@@ -73,6 +73,19 @@ h2 { font-size: 1.6rem; color: #e8f0e8; }
 }
 .hud-item.status { margin-left: auto; color: #facc15; }
 
+.speed-btn {
+  cursor: pointer;
+  border: 1px solid #354233;
+  border-radius: 6px;
+  background: #1f2b22;
+  color: #84cc16;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 4px 12px;
+}
+.speed-btn:hover { transform: translateY(-1px); }
+.speed-btn:active { transform: translateY(0); }
+
 #game-canvas {
   width: 100%;
   max-width: 900px;

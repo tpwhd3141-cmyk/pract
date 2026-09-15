@@ -62,6 +62,11 @@ export class Game {
     this.victory = false;
     this.lastTime = 0;
     this._raf = null;
+    this.speedMultiplier = 1;
+  }
+
+  setSpeed(mult) {
+    this.speedMultiplier = mult;
   }
 
   start(onUpdate, onEnd) {
@@ -79,7 +84,15 @@ export class Game {
     if (!this.lastTime) this.lastTime = ts;
     const dt = Math.min((ts - this.lastTime) / 1000, 0.05);
     this.lastTime = ts;
-    if (this.running) this.update(dt);
+    if (this.running) {
+      // dt 자체를 늘리지 않고 같은 dt로 update()를 여러 번 돌린다.
+      // (dt를 직접 배로 늘리면 투사체가 타겟을 스쳐 지나가거나 오크가
+      // 경로 판정을 건너뛰는 등 고배속에서 충돌/판정이 깨질 수 있음)
+      const steps = Math.max(1, Math.round(this.speedMultiplier));
+      for (let i = 0; i < steps && this.running; i++) {
+        this.update(dt);
+      }
+    }
     this.render();
     if (this.onUpdate) this.onUpdate(this);
     if (this.running) this._raf = requestAnimationFrame((t) => this.loop(t));

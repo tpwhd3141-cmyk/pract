@@ -18,6 +18,14 @@ function showScreen(name) {
 let meta = loadMeta();
 let game = null;
 
+const SPEED_STEPS = [1, 2, 3];
+let speedIndex = 0;
+
+function applySpeedButton() {
+  const btn = document.getElementById("btn-speed");
+  btn.textContent = `${SPEED_STEPS[speedIndex]}x`;
+}
+
 function refreshMenuEssence() {
   document.getElementById("menu-essence").textContent = meta.essence;
 }
@@ -26,6 +34,8 @@ function startRun() {
   const mods = computeMods(meta);
   const canvas = document.getElementById("game-canvas");
   game = new Game(canvas, mods);
+  speedIndex = 0;
+  applySpeedButton();
   buildTowerButtons(mods);
   game.start(onGameUpdate, onGameEnd);
   showScreen("game");
@@ -154,6 +164,13 @@ document.getElementById("game-canvas").addEventListener("mousemove", (e) => {
     x: ((e.clientX - rect.left) / rect.width) * e.target.width,
     y: ((e.clientY - rect.top) / rect.height) * e.target.height,
   };
+});
+
+document.getElementById("btn-speed").addEventListener("click", () => {
+  if (!game) return;
+  speedIndex = (speedIndex + 1) % SPEED_STEPS.length;
+  applySpeedButton();
+  game.setSpeed(SPEED_STEPS[speedIndex]);
 });
 
 document.getElementById("btn-start").addEventListener("click", startRun);
