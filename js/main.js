@@ -28,7 +28,7 @@ function showScreen(name) {
 let meta = loadMeta();
 let game = null;
 
-const SPEED_STEPS = [1, 2, 3];
+const SPEED_STEPS = [1, 2, 3, 4, 5];
 let speedIndex = 0;
 
 function applySpeedButton() {
