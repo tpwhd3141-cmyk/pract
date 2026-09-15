@@ -38,8 +38,9 @@ export class Orc {
   }
 }
 
-// 웨이브 번호에 따라 스폰할 오크 목록(타입 + 딜레이)을 생성
-export function buildWave(waveNumber) {
+// 웨이브 번호에 따라 스폰할 오크 목록(타입 + 로컬 딜레이)을 생성.
+// waveNumber는 난이도(체력/속도) 스케일링에만 쓰인다.
+function buildWave(waveNumber) {
   const list = [];
   const count = 6 + waveNumber * 3;
   const isBossWave = waveNumber % 5 === 0;
@@ -50,11 +51,27 @@ export function buildWave(waveNumber) {
     const roll = Math.random();
     if (waveNumber >= 4 && roll < 0.22) typeId = "tank";
     else if (waveNumber >= 3 && roll < 0.4) typeId = "fast";
-    list.push({ typeId, delay: t });
+    list.push({ typeId, delay: t, waveNumber });
     t += interval;
   }
   if (isBossWave) {
-    list.push({ typeId: "boss", delay: t + 0.6 });
+    list.push({ typeId: "boss", delay: t + 0.6, waveNumber });
+  }
+  return list;
+}
+
+// 웨이브 개념 없이, 예전 15웨이브 분량의 오크를 텀 없이 하나의 연속된 스트림으로 이어붙인다.
+// 뒤로 갈수록(=시간이 지날수록) 난이도가 올라가는 느낌은 waveNumber를 그대로 유지해서 살린다.
+export function buildAllWaves(totalWaves = 15) {
+  const list = [];
+  let cumulative = 0;
+  for (let w = 1; w <= totalWaves; w++) {
+    const wave = buildWave(w);
+    for (const item of wave) {
+      list.push({ typeId: item.typeId, delay: cumulative + item.delay, waveNumber: item.waveNumber });
+    }
+    const duration = wave.length ? wave[wave.length - 1].delay : 0;
+    cumulative += duration; // 웨이브 사이 대기시간 없이 바로 이어서 스폰
   }
   return list;
 }

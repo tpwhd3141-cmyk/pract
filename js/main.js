@@ -1,4 +1,4 @@
-import { Game, TOTAL_WAVES } from "./game.js";
+import { Game } from "./game.js";
 import { TOWER_DEFS } from "./towers.js";
 import { UPGRADE_DEFS, loadMeta, saveMeta, computeMods, canBuy } from "./upgrades.js";
 
@@ -39,13 +39,14 @@ function buildTowerButtons(mods) {
     const unlocked = def.alwaysUnlocked || mods.unlocked.has(typeId);
     const btn = document.createElement("button");
     btn.className = "tower-btn";
+    btn.dataset.type = typeId;
     btn.disabled = !unlocked;
     btn.innerHTML = unlocked
       ? `<span class="tw-name">${def.name}</span><span class="tw-cost">${def.cost}G</span>`
       : `<span class="tw-name">🔒 ${def.name}</span><span class="tw-cost">업그레이드 필요</span>`;
     btn.title = def.desc;
     btn.addEventListener("click", () => {
-      if (!unlocked) return;
+      if (!unlocked || btn.disabled) return;
       document.querySelectorAll(".tower-btn").forEach((b) => b.classList.remove("selected"));
       if (game.selectedTowerType === typeId) {
         game.selectedTowerType = null;
@@ -56,29 +57,47 @@ function buildTowerButtons(mods) {
     });
     container.appendChild(btn);
   }
+  refreshTowerButtonsSlotState();
+}
+
+// 슬롯(설치 가능 개수)이 소진되면 전체 타워 버튼을 잠근다.
+function refreshTowerButtonsSlotState() {
+  if (!game) return;
+  const full = game.towers.length >= game.mods.maxTowers;
+  document.querySelectorAll(".tower-btn").forEach((btn) => {
+    const typeId = btn.dataset.type;
+    const def = TOWER_DEFS[typeId];
+    const unlocked = def.alwaysUnlocked || game.mods.unlocked.has(typeId);
+    btn.disabled = !unlocked || full;
+    if (full) btn.classList.remove("selected");
+  });
 }
 
 function onGameUpdate(g) {
   document.getElementById("hud-gold").textContent = Math.floor(g.gold);
   document.getElementById("hud-hp").textContent = `${Math.ceil(g.baseHp)} / ${g.maxBaseHp}`;
-  document.getElementById("hud-wave").textContent = `${g.wave} / ${TOTAL_WAVES}`;
-  document.getElementById("hud-status").textContent = g.waveActive
-    ? "웨이브 진행 중"
-    : g.wave >= TOTAL_WAVES
-    ? "승리!"
-    : `다음 웨이브까지 ${Math.max(0, g.waveCooldown).toFixed(1)}s`;
+  document.getElementById("hud-slots").textContent = `${g.towers.length} / ${g.mods.maxTowers}`;
+  const remaining = g.spawnQueue.length + g.orcs.length;
+  document.getElementById("hud-progress").textContent = `${g.orcsKilled} / ${g.totalToSpawn}`;
+  document.getElementById("hud-status").textContent = g.ended
+    ? g.victory
+      ? "승리!"
+      : "기지 함락"
+    : remaining > 0
+    ? "오크 쇄도 중"
+    : "마무리 처치 중";
+  refreshTowerButtonsSlotState();
 }
 
-function onGameEnd({ victory, wavesCleared, orcsKilled }) {
-  const base = Math.floor(orcsKilled / 5) + wavesCleared * 3 + (victory ? 20 : 0);
+function onGameEnd({ victory, orcsKilled, totalToSpawn }) {
+  const base = Math.floor(orcsKilled / 4) + (victory ? 30 : 0);
   const earned = Math.round(base * (1 + computeMods(meta).essenceMult));
   meta.essence += earned;
   saveMeta(meta);
 
   document.getElementById("result-title").textContent = victory ? "승리! 오크의 침공을 막아냈습니다" : "기지가 함락되었습니다";
   document.getElementById("result-title").className = victory ? "win" : "lose";
-  document.getElementById("result-waves").textContent = `${wavesCleared} / ${TOTAL_WAVES}`;
-  document.getElementById("result-kills").textContent = orcsKilled;
+  document.getElementById("result-waves").textContent = `${orcsKilled} / ${totalToSpawn}`;
   document.getElementById("result-essence").textContent = `+${earned}`;
   showScreen("result");
 }

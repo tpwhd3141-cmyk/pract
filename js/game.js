@@ -1,8 +1,8 @@
 import { PATH, pointAtDistance, distanceToPath } from "./path.js";
 import { TOWER_DEFS, Tower } from "./towers.js";
-import { Orc, buildWave } from "./orcs.js";
+import { Orc, buildAllWaves } from "./orcs.js";
 
-const TOTAL_WAVES = 15;
+const TOTAL_WAVES = 15; // 스폰 데이터 생성에만 쓰이는 내부 기준값(HUD에는 노출 안 함)
 const MIN_PLACE_DIST_TO_PATH = 34;
 const MIN_PLACE_DIST_TO_TOWER = 38;
 
@@ -48,14 +48,13 @@ export class Game {
     this.gold = this.mods.startGold;
     this.baseHp = this.mods.baseHp;
     this.maxBaseHp = this.mods.baseHp;
-    this.wave = 0;
     this.orcs = [];
     this.towers = [];
     this.projectiles = [];
-    this.spawnQueue = [];
-    this.waveTimer = 0;
-    this.waveActive = false;
-    this.waveCooldown = 3;
+    // 웨이브 개념 없이 전체 분량을 한 번에 생성 - 텀 없이 계속 쏟아진다.
+    this.spawnQueue = buildAllWaves(TOTAL_WAVES);
+    this.totalToSpawn = this.spawnQueue.length;
+    this.elapsed = 0;
     this.selectedTowerType = null;
     this.orcsKilled = 0;
     this.running = true;
@@ -84,13 +83,6 @@ export class Game {
     this.render();
     if (this.onUpdate) this.onUpdate(this);
     if (this.running) this._raf = requestAnimationFrame((t) => this.loop(t));
-  }
-
-  startNextWave() {
-    this.wave++;
-    this.spawnQueue = buildWave(this.wave);
-    this.waveTimer = 0;
-    this.waveActive = true;
   }
 
   damageOrc(orc, amount) {
@@ -134,26 +126,16 @@ export class Game {
   update(dt) {
     if (this.ended) return;
 
-    // 웨이브 진행
-    if (!this.waveActive) {
-      this.waveCooldown -= dt;
-      if (this.waveCooldown <= 0) {
-        if (this.wave >= TOTAL_WAVES) {
-          this.finish(true);
-          return;
-        }
-        this.startNextWave();
-      }
-    } else {
-      this.waveTimer += dt;
-      while (this.spawnQueue.length && this.spawnQueue[0].delay <= this.waveTimer) {
-        const s = this.spawnQueue.shift();
-        this.orcs.push(new Orc(s.typeId, this.wave));
-      }
-      if (this.spawnQueue.length === 0 && this.orcs.length === 0) {
-        this.waveActive = false;
-        this.waveCooldown = 4;
-      }
+    // 웨이브 텀 없이 전체 스폰 큐를 경과 시간 기준으로 계속 흘려보낸다.
+    this.elapsed += dt;
+    while (this.spawnQueue.length && this.spawnQueue[0].delay <= this.elapsed) {
+      const s = this.spawnQueue.shift();
+      this.orcs.push(new Orc(s.typeId, s.waveNumber));
+    }
+    // 스폰할 오크가 남지 않고 필드에도 오크가 없으면 전부 막아낸 것 -> 승리
+    if (this.elapsed > 0.5 && this.spawnQueue.length === 0 && this.orcs.length === 0) {
+      this.finish(true);
+      return;
     }
 
     // 오크 이동
@@ -205,7 +187,7 @@ export class Game {
     this.ended = true;
     this.victory = victory;
     this.running = false;
-    if (this.onEnd) this.onEnd({ victory, wavesCleared: this.wave, orcsKilled: this.orcsKilled });
+    if (this.onEnd) this.onEnd({ victory, orcsKilled: this.orcsKilled, totalToSpawn: this.totalToSpawn });
   }
 
   canPlaceAt(x, y) {
@@ -220,6 +202,7 @@ export class Game {
   tryPlaceTower(x, y, typeId) {
     const def = TOWER_DEFS[typeId];
     if (!def) return false;
+    if (this.towers.length >= this.mods.maxTowers) return false; // 슬롯 소진 - 업그레이드 트리에서만 확장 가능
     if (!def.alwaysUnlocked && !this.mods.unlocked.has(typeId)) return false;
     if (this.gold < def.cost) return false;
     if (!this.canPlaceAt(x, y)) return false;

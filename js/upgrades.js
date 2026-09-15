@@ -21,6 +21,11 @@ export const UPGRADE_DEFS = [
 
   { id: "essence1", name: "정수 효율 I", desc: "런 종료 시 정수 획득 +20%", cost: 20, requires: null, effect: { essenceMult: 0.2 } },
   { id: "essence2", name: "정수 효율 II", desc: "정수 획득 +25% 추가", cost: 40, requires: "essence1", effect: { essenceMult: 0.25 } },
+
+  { id: "slot1", name: "타워 슬롯 확장 I", desc: "설치 가능한 타워 개수 +1", cost: 20, requires: null, effect: { maxTowers: 1 } },
+  { id: "slot2", name: "타워 슬롯 확장 II", desc: "설치 가능한 타워 개수 +1", cost: 35, requires: "slot1", effect: { maxTowers: 1 } },
+  { id: "slot3", name: "타워 슬롯 확장 III", desc: "설치 가능한 타워 개수 +1", cost: 55, requires: "slot2", effect: { maxTowers: 1 } },
+  { id: "slot4", name: "타워 슬롯 확장 IV", desc: "설치 가능한 타워 개수 +1", cost: 80, requires: "slot3", effect: { maxTowers: 1 } },
 ];
 
 const STORAGE_KEY = "orcSiegeMeta_v1";
@@ -49,6 +54,7 @@ export function computeMods(meta) {
     startGold: 100,
     baseHp: 100,
     essenceMult: 0,
+    maxTowers: 1, // 기본값: 한 번 설치하면 더 이상 설치 불가 (업그레이드로 확장)
     unlocked: new Set(["gun"]),
   };
   for (const id of meta.owned) {
@@ -61,6 +67,7 @@ export function computeMods(meta) {
     if (e.startGold) mods.startGold += e.startGold;
     if (e.baseHp) mods.baseHp += e.baseHp;
     if (e.essenceMult) mods.essenceMult += e.essenceMult;
+    if (e.maxTowers) mods.maxTowers += e.maxTowers;
     if (e.unlock) mods.unlocked.add(e.unlock);
   }
   return mods;
